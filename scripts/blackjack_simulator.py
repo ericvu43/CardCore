@@ -1,3 +1,26 @@
+'''
+Credit for this simulator goes to dennis-ho's project at https://github.com/dennis-ho/blackjack-simulator
+
+
+BUG Found:
+Anthony Grego: I had to fix a bug in the project where setting a parameter for the number of decks would result
+               in an error because it wsa originally received as a string rather than an integer. 
+               
+               I edited lines: 322 and 323
+               
+               fix:
+                - Before:
+                    parser.add_argument('--hands', type=float, help='Number of hands to play', default=100)
+                    parser.add_argument('--decks', type=float, help='Number of decks to use in a shoe', default=8)
+                - Afer: 
+                    parser.add_argument('--hands', type=int, help='Number of hands to play', default=100)
+                    parser.add_argument('--decks', type=int, help='Number of decks to use in a shoe', default=8)
+                reason:
+                    Python does not allow for a list to be multiplied by a float so i changed the type to integer to 
+                    resolve conflicts when running the program with parameters.
+'''
+
+
 #!/usr/bin/env python3
 
 import argparse
@@ -141,7 +164,7 @@ class Table:
 
     def new_shoe(self, decks=8, penetration=6.5):
         self.shoe_id += 1
-        self.shoe = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4 *int(decks)
+        self.shoe = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4 * decks
         random.shuffle(self.shoe)
         self.shoe.insert(int(math.floor(penetration * 52)), 0)  # 0 value card indicates cut card
         self.discard_pile = [self.next_card()]  # Burn first card
@@ -311,8 +334,8 @@ def main():
     parser.add_argument('--output_path', help='Path to save CSV results', default='blackjack_simulator.csv')
     parser.add_argument('--log_path', help='Path to log file', default='blackjack_simulator.log')
     parser.add_argument('--log_level', help='Level of messages to write to log file', default='info')
-    parser.add_argument('--hands', type=float, help='Number of hands to play', default=100)
-    parser.add_argument('--decks', type=float, help='Number of decks to use in a shoe', default=8)
+    parser.add_argument('--hands', type=int, help='Number of hands to play', default=100)
+    parser.add_argument('--decks', type=int, help='Number of decks to use in a shoe', default=8)
     parser.add_argument('--pen', type=float, help='Deck penetration (number of decks played before shuffling)', default=6.5)
 
     args = parser.parse_args()

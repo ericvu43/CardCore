@@ -31,6 +31,8 @@ class HeuristicAI:
 
 
     def evaluate_game(self, tricks_won, bids, ai_seat):
+        self.points = 0
+        
         team = [0,0]
         if ai_seat == 0 or ai_seat == 2:
             team = [0,2]

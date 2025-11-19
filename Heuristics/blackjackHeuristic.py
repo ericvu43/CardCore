@@ -1,111 +1,137 @@
-"""
-Credit for this heuristic goes to dennis-ho's project at https://github.com/dennis-ho/blackjack-simulator
 
 
-Blackjack Heuristic Strategy Isolated (Pulled Directly from Simulator)
------------------------------------
-Implements rule-based heuristics for blackjack decisions:
-- Basic strategy tables (hard, soft, split)
-- Insurance rules
-- Hi-Lo card counting
-These are static heuristics, not adaptive learning algorithms.
-
-Possible Actions:
-
-Compress tables:
-The tables have identical rows for some values. Represent them as ranges.
-
-Multi-Objective Strategy:
-Add risk tolerance to balance between aggressive and conservative plays.
-Requires weights for different objectives.
-
-"""
+import csv
+import ast
+import argparse
+from collections import defaultdict
 
 
-H = 'H'  # Hit
-S = 'S'  # Stand
-Dh = 'DH'  # Double Down if allowed, otherwise Hit
-Ds = 'DS'  # Double Down if allowed, otherwise Stand
-P = 'P'  # Split
-Ph = 'PH'  # Split if allowed, otherwise Hit
-Rh = 'RH'  # Surrender if allowed, otherwise Hit
-Rs = 'RS'  # Surrender if allowed, otherwise Stand
-Rp = 'RP'  # Surrender if allowed, otherwise Split
-
-split_strategy = [
-    #2   3   4   5   6   7   8   9   10  A
-    [Ph, Ph, P,  P,  P,  P,  H,  H,  H,  H],   # 2/2
-    [Ph, Ph, P,  P,  P,  P,  H,  H,  H,  H],   # 3/3
-    [H,  H,  H,  Ph, Ph, H,  H,  H,  H,  H],   # 4/4
-    [Dh, Dh, Dh, Dh, Dh, Dh, Dh, Dh, H,  H],   # 5/5
-    [Ph, P,  P,  P,  P,  H,  H,  H,  H,  H],   # 6/6
-    [P,  P,  P,  P,  P,  P,  H,  H,  H,  H],   # 7/7
-    [P,  P,  P,  P,  P,  P,  P,  P,  P,  Rp],  # 8/8
-    [P,  P,  P,  P,  P,  S,  P,  P,  S,  S],   # 9/9
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],   # 10/10
-    [P,  P,  P,  P,  P,  P,  P,  P,  P,  P],   # A/A
-]
-
-soft_strategy = [
-    #2   3   4   5   6   7   8   9   10  A
-    [H,  H,  H,  Dh, Dh, H,  H,  H,  H,  H],  # 13
-    [H,  H,  H,  Dh, Dh, H,  H,  H,  H,  H],  # 14
-    [H,  H,  Dh, Dh, Dh, H,  H,  H,  H,  H],  # 15
-    [H,  H,  Dh, Dh, Dh, H,  H,  H,  H,  H],  # 16
-    [H,  Dh, Dh, Dh, Dh, H,  H,  H,  H,  H],  # 17
-    [Ds, Ds, Ds, Ds, Ds, S,  S,  H,  H,  H],  # 18
-    [S,  S,  S,  S,  Ds, S,  S,  S,  S,  S],  # 19
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],  # 20
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],  # 21
-]
-
-hard_strategy = [
-    #2   3   4   5   6   7   8   9   10  A
-    [H,  H,  H,  H,  H,  H,  H,  H,  H,  H],   # 4
-    [H,  H,  H,  H,  H,  H,  H,  H,  H,  H],   # 5
-    [H,  H,  H,  H,  H,  H,  H,  H,  H,  H],   # 6
-    [H,  H,  H,  H,  H,  H,  H,  H,  H,  H],   # 7
-    [H,  H,  H,  H,  H,  H,  H,  H,  H,  H],   # 8
-    [H,  Dh, Dh, Dh, Dh, H,  H,  H,  H,  H],   # 9
-    [Dh, Dh, Dh, Dh, Dh, Dh, Dh, Dh, H,  H],   # 10
-    [Dh, Dh, Dh, Dh, Dh, Dh, Dh, Dh, Dh, Dh],  # 11
-    [H,  H,  S,  S,  S,  H,  H,  H,  H,  H],   # 12
-    [S,  S,  S,  S,  S,  H,  H,  H,  H,  H],   # 13
-    [S,  S,  S,  S,  S,  H,  H,  H,  H,  H],   # 14
-    [S,  S,  S,  S,  S,  H,  H,  H,  Rh, Rh],  # 15
-    [S,  S,  S,  S,  S,  H,  H,  Rh, Rh, Rh],  # 16
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  Rs],  # 17
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],   # 18
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],   # 19
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],   # 20
-    [S,  S,  S,  S,  S,  S,  S,  S,  S,  S],   # 21
-]
+def make_state_key(row):
+    initial_hand = ast.literal_eval(row['initial_hand'])
+    dealer_up = int(row['dealer_up'])
+    true_count = int(row['true_count'])
+    total = sum(initial_hand)
+    is_soft = 11 in initial_hand
+    return (total, bool(is_soft), dealer_up, true_count)
 
 
-def insurance_strategy_counting(table):
-    return 'I' if table.true_count() >= 2.3 else 'N'
+def first_action(row):
+    actions_str = row['actions_taken']
+    if not actions_str:
+        return None
+    actions_nested = ast.literal_eval(actions_str)
+    if not actions_nested or not actions_nested[0]:
+        return None
+    return actions_nested[0][0]
 
 
-def insurance_strategy_never(table):
-    return 'N'
+def build_V_and_Q(csv_path):
+    V_sum = defaultdict(float)
+    V_n = defaultdict(int)
+    Q_sum = defaultdict(float)
+    Q_n = defaultdict(int)
+
+    with open(csv_path, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            win_str = row.get('win', '')
+            if win_str is None or win_str == '':
+                continue
+            try:
+                G = float(win_str)
+            except ValueError:
+                continue
+            try:
+                s = make_state_key(row)
+            except Exception as e:
+                print(f"Warning: skipping row due to state parse error: {e}")
+                continue
+            V_sum[s] += G
+            V_n[s] += 1
+            try:
+                a = first_action(row)
+            except Exception as e:
+                print(f"Warning: skipping action for row due to parse error: {e}")
+                a = None
+            if a is not None:
+                Q_sum[(s, a)] += G
+                Q_n[(s, a)] += 1
+
+    V = {s: V_sum[s] / V_n[s] for s in V_sum}
+    Q = {(s, a): Q_sum[(s, a)] / Q_n[(s, a)] for (s, a) in Q_sum}
+    return V, Q, V_n, Q_n
 
 
-def insurance_strategy_even_money(table):
-    return 'I' if table.curr().is_blackjack() == 21 else 'N'
+def summarize_V(V, V_n, k=10):
+    if not V:
+        print("No V(s) entries built.")
+        return
+    items = sorted(V.items(), key=lambda x: x[1])
+    print("\n=== Worst states by V(s) ===")
+    for s, v in items[:k]:
+        print(f"State {s} -> EV {v:.3f} (samples: {V_n[s]})")
+    print("\n=== Best states by V(s) ===")
+    for s, v in items[-k:]:
+        print(f"State {s} -> EV {v:.3f} (samples: {V_n[s]})")
 
 
-def basic_strategy(table, available_actions):
-    if 'I' in available_actions:
-        action = insurance_strategy_never(table)
-    elif 'P' in available_actions:
-        action = split_strategy[table.curr().cards[0] - 2][table.dealer_hand.cards[0] - 2]
-    elif table.curr().is_soft():
-        action = soft_strategy[table.curr().value() - 13][table.dealer_hand.cards[0] - 2]
-    else:
-        action = hard_strategy[table.curr().value() - 4][table.dealer_hand.cards[0] - 2]
-    return action[0] if action[0] in available_actions else action[1]
+def summarize_Q(Q, Q_n, k=10):
+    if not Q:
+        print("No Q(s,a) entries built.")
+        return
+    items = sorted(Q.items(), key=lambda x: x[1])
+    print("\n=== Worst (state, action) by Q(s,a) ===")
+    for (s, a), q in items[:k]:
+        print(f"State {s}, action {a} -> EV {q:.3f} (samples: {Q_n[(s, a)]})")
+    print("\n=== Best (state, action) by Q(s,a) ===")
+    for (s, a), q in items[-k:]:
+        print(f"State {s}, action {a} -> EV {q:.3f} (samples: {Q_n[(s, a)]})")
 
 
-def count_hi_lo(cards):
-    count_val = sum([1 if card in [2, 3, 4, 5, 6] else -1 if card in [10, 11] else 0 for card in cards])
-    return count_val
+def save_V_csv(V, V_n, path):
+    with open(path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["player_total", "is_soft", "dealer_up", "true_count", "EV", "samples"])
+        for (total, is_soft, dealer_up, true_count), ev in V.items():
+            ev = round(ev, 3)
+            samples = V_n[(total, is_soft, dealer_up, true_count)]
+            writer.writerow([total, is_soft, dealer_up, true_count, ev, samples])
+
+
+def save_Q_csv(Q, Q_n, path):
+    with open(path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["player_total", "is_soft", "dealer_up", "true_count", "action", "EV", "samples"])
+        for (s, a), ev in Q.items():
+            total, is_soft, dealer_up, true_count = s
+            ev = round(ev, 3)
+            samples = Q_n[(s, a)]
+            writer.writerow([total, is_soft, dealer_up, true_count, a, ev, samples])
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', default='blackjack_dev.csv',
+                        help='Path to blackjack simulator CSV file')
+    args = parser.parse_args()
+
+    print(f"Reading data from: {args.input}")
+    V, Q, V_n, Q_n = build_V_and_Q(args.input)
+
+    print(f"\nBuilt V(s) for {len(V)} distinct states.")
+    print(f"Built Q(s,a) for {len(Q)} distinct (state, action) pairs.")
+
+    summarize_V(V, V_n)
+    summarize_Q(Q, Q_n)
+
+    print("\nSaving full V(s) table to V_full.csv...")
+    save_V_csv(V, V_n, "V_full.csv")
+
+    print("Saving full Q(s,a) table to Q_full.csv...")
+    save_Q_csv(Q, Q_n, "Q_full.csv")
+
+    print("\nDone.")
+
+
+if __name__ == '__main__':
+    main()

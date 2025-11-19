@@ -1,137 +1,134 @@
-
-
 import csv
 import ast
 import argparse
 from collections import defaultdict
 
 
-def make_state_key(row):
-    initial_hand = ast.literal_eval(row['initial_hand'])
-    dealer_up = int(row['dealer_up'])
-    true_count = int(row['true_count'])
-    total = sum(initial_hand)
-    is_soft = 11 in initial_hand
-    return (total, bool(is_soft), dealer_up, true_count)
+def extract_state(row):
+    """Convert a CSV row into a blackjack state tuple."""
+    hand = ast.literal_eval(row['initial_hand'])
+    total = sum(hand)
+    is_soft = 11 in hand
+    dealer_card = int(row['dealer_up'])
+    tc = int(row['true_count'])
+    return (total, is_soft, dealer_card, tc)
 
 
-def first_action(row):
-    actions_str = row['actions_taken']
-    if not actions_str:
+def extract_first_action(row):
+    """Extract the player's first action from the actions list."""
+    raw = row.get('actions_taken')
+    if not raw:
         return None
-    actions_nested = ast.literal_eval(actions_str)
-    if not actions_nested or not actions_nested[0]:
+    actions = ast.literal_eval(raw)
+    if not actions or not actions[0]:
         return None
-    return actions_nested[0][0]
+    return actions[0][0]
 
 
-def build_V_and_Q(csv_path):
-    V_sum = defaultdict(float)
-    V_n = defaultdict(int)
-    Q_sum = defaultdict(float)
-    Q_n = defaultdict(int)
+def compute_ev_tables(csv_path):
+    """Build V(s) and Q(s,a) from the simulation file."""
 
-    with open(csv_path, 'r', newline='') as f:
+    V_total = defaultdict(float)
+    V_count = defaultdict(int)
+    Q_total = defaultdict(float)
+    Q_count = defaultdict(int)
+
+    with open(csv_path, 'r') as f:
         reader = csv.DictReader(f)
+
         for row in reader:
-            win_str = row.get('win', '')
-            if win_str is None or win_str == '':
+            if not row.get('win'):
                 continue
-            try:
-                G = float(win_str)
-            except ValueError:
-                continue
-            try:
-                s = make_state_key(row)
-            except Exception as e:
-                print(f"Warning: skipping row due to state parse error: {e}")
-                continue
-            V_sum[s] += G
-            V_n[s] += 1
-            try:
-                a = first_action(row)
-            except Exception as e:
-                print(f"Warning: skipping action for row due to parse error: {e}")
-                a = None
-            if a is not None:
-                Q_sum[(s, a)] += G
-                Q_n[(s, a)] += 1
 
-    V = {s: V_sum[s] / V_n[s] for s in V_sum}
-    Q = {(s, a): Q_sum[(s, a)] / Q_n[(s, a)] for (s, a) in Q_sum}
-    return V, Q, V_n, Q_n
+            win = float(row['win'])
+            state = extract_state(row)
+
+            V_total[state] += win
+            V_count[state] += 1
+
+            action = extract_first_action(row)
+            if action is not None:
+                Q_total[(state, action)] += win
+                Q_count[(state, action)] += 1
+
+    V = {s: V_total[s] / V_count[s] for s in V_total}
+    Q = {(s, a): Q_total[(s, a)] / Q_count[(s, a)] for (s, a) in Q_total}
+
+    return V, Q, V_count, Q_count
 
 
-def summarize_V(V, V_n, k=10):
+def show_best_worst_V(V, V_count, n=10):
     if not V:
-        print("No V(s) entries built.")
+        print("No V(s) values.")
         return
-    items = sorted(V.items(), key=lambda x: x[1])
-    print("\n=== Worst states by V(s) ===")
-    for s, v in items[:k]:
-        print(f"State {s} -> EV {v:.3f} (samples: {V_n[s]})")
-    print("\n=== Best states by V(s) ===")
-    for s, v in items[-k:]:
-        print(f"State {s} -> EV {v:.3f} (samples: {V_n[s]})")
+
+    ordered = sorted(V.items(), key=lambda x: x[1])
+
+    print("\n--- Worst States ---")
+    for state, ev in ordered[:n]:
+        print(f"{state} -> EV {ev:.3f} (samples: {V_count[state]})")
+
+    print("\n--- Best States ---")
+    for state, ev in ordered[-n:]:
+        print(f"{state} -> EV {ev:.3f} (samples: {V_count[state]})")
 
 
-def summarize_Q(Q, Q_n, k=10):
+def show_best_worst_Q(Q, Q_count, n=10):
     if not Q:
-        print("No Q(s,a) entries built.")
+        print("No Q(s,a) values.")
         return
-    items = sorted(Q.items(), key=lambda x: x[1])
-    print("\n=== Worst (state, action) by Q(s,a) ===")
-    for (s, a), q in items[:k]:
-        print(f"State {s}, action {a} -> EV {q:.3f} (samples: {Q_n[(s, a)]})")
-    print("\n=== Best (state, action) by Q(s,a) ===")
-    for (s, a), q in items[-k:]:
-        print(f"State {s}, action {a} -> EV {q:.3f} (samples: {Q_n[(s, a)]})")
+
+    ordered = sorted(Q.items(), key=lambda x: x[1])
+
+    print("\n--- Worst State/Action ---")
+    for (state, action), ev in ordered[:n]:
+        print(f"{state}, {action} -> EV {ev:.3f} (samples: {Q_count[(state, action)]})")
+
+    print("\n--- Best State/Action ---")
+    for (state, action), ev in ordered[-n:]:
+        print(f"{state}, {action} -> EV {ev:.3f} (samples: {Q_count[(state, action)]})")
 
 
-def save_V_csv(V, V_n, path):
+def save_V_csv(V, V_count, path):
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["player_total", "is_soft", "dealer_up", "true_count", "EV", "samples"])
-        for (total, is_soft, dealer_up, true_count), ev in V.items():
-            ev = round(ev, 3)
-            samples = V_n[(total, is_soft, dealer_up, true_count)]
-            writer.writerow([total, is_soft, dealer_up, true_count, ev, samples])
+        for (total, is_soft, dealer_up, tc), ev in V.items():
+            writer.writerow([total, is_soft, dealer_up, tc, round(ev, 3),
+                             V_count[(total, is_soft, dealer_up, tc)]])
 
 
-def save_Q_csv(Q, Q_n, path):
+def save_Q_csv(Q, Q_count, path):
     with open(path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["player_total", "is_soft", "dealer_up", "true_count", "action", "EV", "samples"])
-        for (s, a), ev in Q.items():
-            total, is_soft, dealer_up, true_count = s
-            ev = round(ev, 3)
-            samples = Q_n[(s, a)]
-            writer.writerow([total, is_soft, dealer_up, true_count, a, ev, samples])
+        for (state, action), ev in Q.items():
+            total, is_soft, dealer_up, tc = state
+            writer.writerow([total, is_soft, dealer_up, tc, action,
+                             round(ev, 3), Q_count[(state, action)]])
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', default='blackjack_dev.csv',
-                        help='Path to blackjack simulator CSV file')
+    parser.add_argument("--input", default="blackjack_dev.csv", help="Path to simulation CSV")
     args = parser.parse_args()
 
-    print(f"Reading data from: {args.input}")
-    V, Q, V_n, Q_n = build_V_and_Q(args.input)
+    print(f"\nReading data from {args.input}")
 
-    print(f"\nBuilt V(s) for {len(V)} distinct states.")
-    print(f"Built Q(s,a) for {len(Q)} distinct (state, action) pairs.")
+    V, Q, V_count, Q_count = compute_ev_tables(args.input)
 
-    summarize_V(V, V_n)
-    summarize_Q(Q, Q_n)
+    print(f"\nBuilt {len(V)} states (V)")
+    print(f"Built {len(Q)} state/action pairs (Q)")
 
-    print("\nSaving full V(s) table to V_full.csv...")
-    save_V_csv(V, V_n, "V_full.csv")
+    show_best_worst_V(V, V_count)
+    show_best_worst_Q(Q, Q_count)
 
-    print("Saving full Q(s,a) table to Q_full.csv...")
-    save_Q_csv(Q, Q_n, "Q_full.csv")
+    print("\nSaving CSV files...")
+    save_V_csv(V, V_count, "V_full.csv")
+    save_Q_csv(Q, Q_count, "Q_full.csv")
 
     print("\nDone.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

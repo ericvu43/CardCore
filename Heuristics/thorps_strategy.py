@@ -1,8 +1,18 @@
-#Thorp's Optimal Basic Strategy for Blackjack: 
-#   -hard, soft, and split decision tables
-#   - Returns the same optimal actions computed by Thorp’s original strategy.
+"""
+Thorp's Optimal Basic Strategy for Blackjack
+-----------------------------------------------------------------------------------------------
+This implements the optimal basic strategy for Blackjack as originally
+developed by Edward O. Thorp in his book,  "Beat the Dealer" (1962).
 
-#Based on Edward O. Thorp's "Beat the Dealer" (1962) *need to cite the book*
+Reference:
+    Thorp, E. O. (1962). Beat the Dealer: A Winning Strategy for the Game of 
+    Twenty-One. Random House, New York.
+
+ Notes:
+    - These tables represent optimal play for standard casino rules
+    - Assumes a dealer stands on soft 17, 8 decks, late surrender allowed
+    
+"""
 
 #actions
 H = 'H' #Hit
@@ -25,7 +35,7 @@ thorp_hard= {
     13: ["S","S","S","S","S","H","H","H","H","H"],
     14: ["S","S","S","S","S","H","H","H","H","H"],
     15: ["S","S","S","S","S","H","H","H","R","H"],
-    16: ["S","S","S","S","S","H","R","R","R","H"],
+    16: ["S","S","S","S","S","H","H","R","R","R"],
     17: ["S","S","S","S","S","S","S","S","S","S"],
     18: ["S","S","S","S","S","S","S","S","S","S"],
     19: ["S","S","S","S","S","S","S","S","S","S"],
@@ -115,18 +125,98 @@ def compare_action_to_thorp(player_total, is_soft, dealer_up, actual_action, pai
     return (normalized == thorp_action, thorp_action, normalized)
 
 def verify_rules():
-    """Run a few  checks that must be true for Thorp's  tables."""
+    """
+    Run comprehensive checks to ensure Thorp's strategy tables are correct.
+    
+    Returns:
+        list: List of (test_name, passed) tuples
+    """
     checks = []
+    
+    #Hard totals verification
     checks.append(("Double 9 vs 3-6", thorp_hard[9][1:5] == ['D','D','D','D']))
     checks.append(("Double 10 vs 2-9", thorp_hard[10][0:8] == ['D']*8))
     checks.append(("Double 11 vs 2-10", thorp_hard[11][0:9] == ['D']*9))
     checks.append(("Stand 12 vs 4-6", thorp_hard[12][2:5] == ['S','S','S']))
     checks.append(("Stand 13-16 vs dealer 2-6", all(thorp_hard[t][0:5] == ['S']*5 for t in (13,14,15,16))))
+    checks.append(("Surrender 16 vs 9,10,A", thorp_hard[16][7:10] == ['R','R','R']))
+    
+    #soft totals verification
+    checks.append(("Double soft 18 vs 3-6", thorp_soft[18][1:5] == ['D','D','D','D']))
+    checks.append(("Hit soft 18 vs 9,10,A", thorp_soft[18][7:10] == ['H','H','H']))
+    
+    #Split verification
     checks.append(("Split A,A always", all(x=='Y' for x in thorp_split[11])))
+    checks.append(("Split 8,8 always", all(x=='Y' for x in thorp_split[8])))
     checks.append(("Never split 5s", all(x=='N' for x in thorp_split[5])))
     checks.append(("Never split 10s", all(x=='N' for x in thorp_split[10])))
+    
     return checks
 
+
+def print_strategy_tables():
+    #prints all strategy tables
+    print("THORP'S BASIC STRATEGY TABLES")
+    print("-"*70)
+    
+    print("\nHARD TOTALS:")
+    print("Player | ", end="")
+    for d in range(2, 12):
+        print(f"{d:^4}", end="")
+    print("\n" + "-"*60)
+    
+    for total in sorted(thorp_hard.keys()):
+        print(f"  {total:2d}   | ", end="")
+        for action in thorp_hard[total]:
+            print(f"{action:^4}", end="")
+        print()
+    
+    print("\nSOFT TOTALS:")
+    print("Player | ", end="")
+    for d in range(2, 12):
+        print(f"{d:^4}", end="")
+    print("\n" + "-"*60)
+    
+    for total in sorted(thorp_soft.keys()):
+        print(f"A,{total-11:2d}   | ", end="")
+        for action in thorp_soft[total]:
+            print(f"{action:^4}", end="")
+        print()
+    
+    print("\nPAIRS:")
+    print("Player | ", end="")
+    for d in range(2, 12):
+        print(f"{d:^4}", end="")
+    print("\n" + "-"*60)
+    
+    for pair in sorted(thorp_split.keys()):
+        card_name = "A" if pair == 11 else str(pair)
+        print(f"{card_name},{card_name}    | ", end="")
+        for action in thorp_split[pair]:
+            print(f"{action:^4}", end="")
+        print()
+    print("-"*70 + "\n")
+
 if __name__ == "__main__":
-    print("Thorp's strategy module basic test run\n")
-    #fill out tests
+    print("Thorp's Strategy Module - Verification Tests\n")
+    
+    # Run verification tests
+    checks = verify_rules()
+    print("Running strategy verification tests...\n")
+    
+    all_passed = True
+    for test_name, passed in checks:
+        status = "PASS" if passed else "FAIL"
+        print(f"{status}: {test_name}")
+        if not passed:
+            all_passed = False
+    
+    if all_passed:
+        print("\nAll tests passed")
+    else:
+        print("\nSome tests failed.")
+    
+    # Print strategy tables
+    print_strategy_tables()
+    
+    

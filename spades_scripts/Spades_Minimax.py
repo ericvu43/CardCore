@@ -1,4 +1,9 @@
 import math
+from heuristic_spades_ai import HeuristicAI
+from spades_moves import SpadesMoves
+
+heuristic_spades_ai = HeuristicAI()
+spades_moves = SpadesMoves()
 
 def team_of(seat: int) -> int:
     """
@@ -24,29 +29,30 @@ def minimax_value(state,
     """
 
     # Base case: depth limit or game/hand over
-    if depth == 0 or is_terminal: #TODO(state) 
-        return evaluate_state #TODO(state, hero_seat)
+    if depth == 0 or len(state.state["hands"][seat_to_act]) == 0:
+        return heuristic_spades_ai.evaluate_game(state.state["tricks_won"],[0,0,0,0], hero_seat)
 
-    legal_moves = get_legal_moves #TODO(state, seat_to_act)
+    legal_moves = state.getAllValidMoves(state.state["hands"][seat_to_act])
 
     # If no moves, treat as terminal (shouldn't usually happen if rules are correct)
     if not legal_moves:
-        return evaluate_state #TODO(state, hero_seat)
+        return heuristic_spades_ai.evaluate_game(state.state["tricks_won"], [0,0,0,0], hero_seat)
 
     is_max_node = (team_of(seat_to_act) == team_of(hero_seat))
 
     if is_max_node:
         value = -math.inf
         for move in legal_moves:
-            child_state = apply_move #TODO(state, seat_to_act, move)
+            state.makeMove(seat_to_act, move)
             child_val = minimax_value(
-                child_state,
+                state,
                 next_seat(seat_to_act),
                 hero_seat,
                 depth - 1,
                 alpha,
                 beta
             )
+            state.undoMove()
             value = max(value, child_val)
             alpha = max(alpha, value)
             if beta <= alpha:  # alpha–beta pruning
@@ -55,15 +61,16 @@ def minimax_value(state,
     else:
         value = math.inf
         for move in legal_moves:
-            child_state = apply_move #TODO(state, seat_to_act, move)
+            state.makeMove(seat_to_act, move)
             child_val = minimax_value(
-                child_state,
+                state,
                 next_seat(seat_to_act),
                 hero_seat,
                 depth - 1,
                 alpha,
                 beta
             )
+            state.undoMove()
             value = min(value, child_val)
             beta = min(beta, value)
             if beta <= alpha:  # alpha–beta pruning
@@ -78,7 +85,7 @@ def minimax_choose_move(state,
     Pick the best move for hero_seat using depth-limited minimax.
     Increase `depth` for stronger (but slower) play.
     """
-    legal_moves = get_legal_moves #TODO(state, hero_seat)
+    legal_moves = state.getAllValidMoves(state.state["hands"][hero_seat])
     if not legal_moves:
         return None  # no legal move available
 
@@ -86,15 +93,16 @@ def minimax_choose_move(state,
     best_val = -math.inf
 
     for move in legal_moves:
-        child_state = apply_move #TODO(state, seat_to_act, move)
+        state.makeMove(hero_seat, move)
         val = minimax_value(
-            child_state,
+            state,
             next_seat(hero_seat),
             hero_seat,
             depth - 1,
             alpha=-math.inf,
             beta=math.inf
         )
+        state.undoMove()
         if val > best_val:
             best_val = val
             best_move = move

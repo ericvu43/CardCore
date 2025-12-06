@@ -1,4 +1,4 @@
-# portions of this code adapted from the Spades simulator module used in our project found in simulator.py in this repository
+# portions of this code adapted from the Spades simulator module used in our project found in Spades Simulator.py in this repository
 
 class  SpadesMoves:
 

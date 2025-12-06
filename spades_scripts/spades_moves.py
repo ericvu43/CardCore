@@ -1,4 +1,4 @@
-# portions of this code adapted from Spades simulator
+# portions of this code adapted from Spades simulator for this project
 
 class  SpadesMoves:
 

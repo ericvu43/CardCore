@@ -13,6 +13,33 @@ class HeuristicAI:
         self.name = HeuristicAI.NAME
         self.points = 0
 
+
+    # looks at and assigns a score value for current state
+    def evaluate_state(self, state, hero_seat):
+
+        score = 0
+
+        team = 0
+        if hero_seat in (0,2):
+            team = 0
+        else: 
+            team = 1
+
+        tricks = state.state["tricks_won"]
+        team_tricks = 0
+        opp_tricks = 0
+
+        if team == 0:
+            team_tricks = tricks[0] + tricks[2]
+            opp_tricks = tricks[1] + tricks[3]
+        else:
+            team_tricks = tricks[1] + tricks[3]
+            opp_tricks = tricks[0] + tricks[2]
+
+        score = score + (team_tricks - opp_tricks) * 2
+        return score
+
+
     #Assign scores for each move
 
     WIN_SCORE = 100

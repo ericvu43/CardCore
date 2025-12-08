@@ -17,6 +17,8 @@ def next_seat(seat: int) -> int:
     return (seat + 1) % 4
 
 
+
+
 def minimax_value(state,
                   seat_to_act: int,
                   hero_seat: int,
@@ -30,13 +32,13 @@ def minimax_value(state,
 
     # Base case: depth limit or game/hand over
     if depth == 0 or len(state.state["hands"][seat_to_act]) == 0:
-        return heuristic_spades_ai.evaluate_game(state.state["tricks_won"],[0,0,0,0], hero_seat)
+        return heuristic_spades_ai.evaluate_state(state, hero_seat)
 
     legal_moves = state.getAllValidMoves(state.state["hands"][seat_to_act])
 
     # If no moves, treat as terminal (shouldn't usually happen if rules are correct)
     if not legal_moves:
-        return heuristic_spades_ai.evaluate_game(state.state["tricks_won"], [0,0,0,0], hero_seat)
+        return heuristic_spades_ai.evaluate_game(state.state["tricks_won"], state.state["bids"], hero_seat)
 
     is_max_node = (team_of(seat_to_act) == team_of(hero_seat))
 

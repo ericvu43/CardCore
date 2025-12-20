@@ -33,7 +33,15 @@ class  SpadesMoves:
 #apply move
     def makeMove(self, player, card):
         #save move
-        self.state_history.append((player,card))
+        self.state_history.append({
+            "player": player,
+            "card": card,
+            "hands": [list(h) for h in self.state["hands"]],
+            "trick": list(self.state["trick"]),
+            "spades_broken": self.state["spades_broken"],
+            "tricks_won": list(self.state["tricks_won"]),
+            "turn": self.state["turn"]
+        })
 
         #remove card from hand and add trick
         self.state["hands"][player].remove(card)
@@ -45,7 +53,7 @@ class  SpadesMoves:
 
         if len(self.state["trick"]) == 4:
 
-            lead_suit = self.state["trick"][0][1].suit
+            lead_suite = self.state["trick"][0][1].suite
             trick = self.state["trick"]
             winning = None
             for s, c in trick:
@@ -53,9 +61,9 @@ class  SpadesMoves:
                     winning = (s,c)
                 else:
                     ws, wc = winning
-                    if (c.suit == 3 and wc.suit != 3) or \
-                        (c.suit == wc.suit and c.rank > wc.rank) or \
-                        (c.suit == 3 and wc.suit == 3 and c.rank > wc.rank):
+                    if (c.suite == 3 and wc.suite != 3) or \
+                        (c.suite == wc.suite and c.orderID > wc.orderID) or \
+                        (c.suite == 3 and wc.suite == 3 and c.orderID > wc.orderID):
                         winning = (s,c)
             winner_seat, _ = winning
 
@@ -68,9 +76,10 @@ class  SpadesMoves:
 
 
     def undoMove(self):
-        player, card = self.state_history.pop()
+        last = self.state_history.pop()
 
-        self.state["hands"][player].append(card)
-
-        self.state["trick"].pop()
-        
+        self.state["hands"] = [list(h) for h in last["hands"]]
+        self.state["trick"] = list(last["trick"])
+        self.state["spades_broken"] = last["spades_broken"]
+        self.state["tricks_won"] = list(last["tricks_won"])
+        self.state["turn"] = last["turn"]

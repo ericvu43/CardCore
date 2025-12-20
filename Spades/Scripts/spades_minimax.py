@@ -82,7 +82,7 @@ def minimax_value(state,
 
 def minimax_choose_move(state,
                         hero_seat: int,
-                        depth: int = 2):
+                        depth: int = 4):
     """
     Pick the best move for hero_seat using depth-limited minimax.
     Increase `depth` for stronger (but slower) play.

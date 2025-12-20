@@ -36,9 +36,31 @@ class HeuristicAI:
             team_tricks = tricks[1] + tricks[3]
             opp_tricks = tricks[0] + tricks[2]
 
-        score = score + (team_tricks - opp_tricks) * 2
-        return score
+        score += (team_tricks - opp_tricks) * 10
+        
+        #extra score for better cards
 
+        hand = state.state["hands"][hero_seat]
+
+    
+        for card in hand:
+            if card.orderID == 14:
+                score += 12
+            elif card.orderID == 13:
+                score += 8
+            elif card.orderID == 12:
+                score += 5
+            elif card.orderID == 11:
+                score += 3
+            elif card.orderID == 10:
+                score += 1
+            
+            if card.suiteID == 3:
+                score += .5
+
+
+        return score
+        
 
     #Assign scores for each move
 

@@ -4,8 +4,6 @@
 import random
 import getpass
 from card import Card
-from contract import Contract
-from spades_utils import *
 
 
 class HeuristicAI:
@@ -14,6 +12,55 @@ class HeuristicAI:
     def __init__(self):
         self.name = HeuristicAI.NAME
         self.points = 0
+
+
+    # looks at and assigns a score value for current state
+    def evaluate_state(self, state, hero_seat):
+
+        score = 0
+
+        team = 0
+        if hero_seat in (0,2):
+            team = 0
+        else: 
+            team = 1
+
+        tricks = state.state["tricks_won"]
+        team_tricks = 0
+        opp_tricks = 0
+
+        if team == 0:
+            team_tricks = tricks[0] + tricks[2]
+            opp_tricks = tricks[1] + tricks[3]
+        else:
+            team_tricks = tricks[1] + tricks[3]
+            opp_tricks = tricks[0] + tricks[2]
+
+        score += (team_tricks - opp_tricks) * 10
+        
+        #extra score for better cards
+
+        hand = state.state["hands"][hero_seat]
+
+    
+        for card in hand:
+            if card.orderID == 14:
+                score += 12
+            elif card.orderID == 13:
+                score += 8
+            elif card.orderID == 12:
+                score += 5
+            elif card.orderID == 11:
+                score += 3
+            elif card.orderID == 10:
+                score += 1
+            
+            if card.suiteID == 3:
+                score += .5
+
+
+        return score
+        
 
     #Assign scores for each move
 
@@ -78,7 +125,7 @@ class HeuristicAI:
         # plays lowest ranked card
         lowest_card = selectable[0]
         for card in selectable:
-            if card.rank.value < lowest_card.rank.value:
+            if card.orderID < lowest_card.orderID:
                 lowest_card = card
 
         return lowest_card

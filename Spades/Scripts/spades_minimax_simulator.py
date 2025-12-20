@@ -44,10 +44,10 @@ class GameLogger:
             "seat":seat, "features":hand_feats, "bid":bid, "nil":nil
         })
 
-    def log_play(self, trick_id, seat, legal_moves, chosen, lead_suit, spades_broken, belief=None):
+    def log_play(self, trick_id, seat, legal_moves, chosen, lead_suite, spades_broken, belief=None):
         self._write({
             "event":"play","game_id":self.game_id,"hand_id":self.hand_id,"trick_id":trick_id,
-            "seat":seat, "lead_suit":lead_suit, "spades_broken":spades_broken,
+            "seat":seat, "lead_suite":lead_suite, "spades_broken":spades_broken,
             "legal_moves":[f"{c.suite}{c.order}" for c in legal_moves], "chosen":f"{chosen.suite}{chosen.order}",
             "belief":belief or {}
         })
@@ -71,20 +71,24 @@ class GameLogger:
             f.write(json.dumps(obj)+"\n")
 
 # --- Simple bots for self-play ---
-def legal_moves(hand: List[Card], lead_suit: int, spades_broken: bool):
-    if lead_suit is None:
+def legal_moves(hand: List[Card], lead_suite: int, spades_broken: bool):
+    if lead_suite is None:
         # cannot lead spades unless broken or only spades remain
         non_spades = [c for c in hand if c.suiteID != 3]
         if non_spades:
             return non_spades
         return hand
-    follows = [c for c in hand if c.suiteID == lead_suit]
+    follows = [c for c in hand if c.suiteID == lead_suite]
     return follows if follows else hand
 
-def greedy_bot_choose(hand, lead_suit, spades_broken):
-    moves = legal_moves(hand, lead_suit, spades_broken)
-    # trivial heuristic: if following suit, play the lowest; else dump highest non-spade, else lowest spade
-    following = [c for c in moves if lead_suit is not None and c.suiteID == lead_suit]
+def greedy_bot_choose(hand, lead_suite, spades_broken):
+    if not hand:
+        return None
+    moves = legal_moves(hand, lead_suite, spades_broken)
+    if not moves:
+        return hand[0]
+    # trivial heuristic: if following suite, play the lowest; else dump highest non-spade, else lowest spade
+    following = [c for c in moves if lead_suite is not None and c.suiteID == lead_suite]
     if following: return min(following, key=lambda c:c.orderID)
     non_spades = [c for c in moves if c.suiteID != 3]
     if non_spades: return max(non_spades, key=lambda c:c.orderID)
@@ -116,22 +120,30 @@ def play_one_hand(logger: GameLogger, rng: random.Random):
 
     for trick_id in range(13):
         trick = []
-        lead_suit = None
+        lead_suite = None
         for i in range(4):
             seat = (leader + i) % 4
+            move = None
             if seat == 0:
                 move = minimax_choose_move(game_state, hero_seat=0, depth=2)
             else:
-                move = greedy_bot_choose(hands[seat], lead_suit, spades_broken)
+                move = greedy_bot_choose(hands[seat], lead_suite, spades_broken)
 
-            if lead_suit is None: lead_suit = move.suiteID
+            if move is None:
+                continue
+
+            if lead_suite is None: lead_suite = move.suiteID
             if move.suiteID == 3: spades_broken = True
-            logger.log_play(trick_id, seat, legal_moves(hands[seat], lead_suit, spades_broken), move, lead_suit, spades_broken)
-            hands[seat].remove(move)
+            logger.log_play(trick_id, seat, legal_moves(hands[seat], lead_suite, spades_broken), move, lead_suite, spades_broken)
+            
             trick.append((seat, move))
+            if seat == 0:
+                game_state.makeMove(seat,move)
+            else:
+                hands[seat].remove(move)
 
         # decide winner
-        led = lead_suit
+        led = lead_suite
         winning = None
         for s, c in trick:
             if winning is None:
